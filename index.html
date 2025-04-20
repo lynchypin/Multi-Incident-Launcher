@@ -50,8 +50,11 @@
                 </ol>
             </div>
             <div class="mb-3">
-                <input type="text" id="newKeyInput" class="form-control" placeholder="Enter routing key">
-                <button onclick="addKey()" class="btn btn-primary mt-2">Add Key</button>
+                <div class="input-group">
+                    <input type="text" id="newKeyInput" class="form-control" placeholder="Enter routing key">
+                    <input type="text" id="newKeyName" class="form-control" placeholder="Enter key name (optional)">
+                    <button onclick="addKey()" class="btn btn-primary">Add Key</button>
+                </div>
             </div>
             <div id="keysList" class="mb-3"></div>
             <button onclick="saveAndContinue()" class="btn btn-success">Save and Continue</button>
@@ -60,7 +63,7 @@
         <!-- Main Control Section -->
         <div id="controlSection" class="hidden">
             <h2>PagerDuty Event Generator</h2>
-            
+
             <!-- Routing Keys Management -->
             <div class="card mb-4">
                 <div class="card-header">
@@ -70,6 +73,7 @@
                     <div id="mainKeysList"></div>
                     <div class="input-group mt-3">
                         <input type="text" id="mainNewKeyInput" class="form-control" placeholder="Enter new routing key">
+                        <input type="text" id="mainNewKeyName" class="form-control" placeholder="Enter key name (optional)">
                         <button class="btn btn-outline-primary" onclick="addKeyMain()">Add New Key</button>
                     </div>
                 </div>
@@ -82,12 +86,37 @@
                 </div>
                 <div class="card-body">
                     <div class="mb-3">
+                        <label class="form-label">Routing Key Selection</label>
+                        <select id="keySelectionMode" class="form-select">
+                            <option value="random">Random (Default)</option>
+                            <option value="specific">Specific Key</option>
+                        </select>
+                        <div id="specificKeySelection" class="mt-2 hidden">
+                            <select id="specificKey" class="form-select">
+                                <!-- Populated dynamically -->
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
                         <label class="form-label">Run Mode</label>
                         <select id="runMode" class="form-select" onchange="toggleIterationInputs()">
                             <option value="single">Single Run</option>
                             <option value="multiple">Multiple Runs</option>
                         </select>
                     </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Event Severity</label>
+                        <select id="severityMode" class="form-select">
+                            <option value="random">Random (Default)</option>
+                            <option value="critical">Critical</option>
+                            <option value="error">Error</option>
+                            <option value="warning">Warning</option>
+                            <option value="info">Info</option>
+                        </select>
+                    </div>
+
                     <div id="iterationControls" class="hidden">
                         <div class="mb-3">
                             <label class="form-label">Number of Iterations</label>
@@ -133,28 +162,44 @@
                     document.getElementById('setupSection').classList.add('hidden');
                     document.getElementById('controlSection').classList.remove('hidden');
                     updateKeysListMain();
+                    updateSpecificKeyDropdown();
                 }
             }
             updateKeysList();
+
+            // Add event listener for key selection mode
+            document.getElementById('keySelectionMode').addEventListener('change', function() {
+                const specificKeySelection = document.getElementById('specificKeySelection');
+                specificKeySelection.classList.toggle('hidden', this.value === 'random');
+            });
         };
 
         function addKey() {
             const keyInput = document.getElementById('newKeyInput');
+            const nameInput = document.getElementById('newKeyName');
             const key = keyInput.value.trim();
-            if (key && !routingKeys.includes(key)) {
-                routingKeys.push(key);
+            const name = nameInput.value.trim() || key;
+            
+            if (key && !routingKeys.some(k => k.key === key)) {
+                routingKeys.push({ key: key, name: name });
                 keyInput.value = '';
+                nameInput.value = '';
                 updateKeysList();
             }
         }
 
         function addKeyMain() {
             const keyInput = document.getElementById('mainNewKeyInput');
+            const nameInput = document.getElementById('mainNewKeyName');
             const key = keyInput.value.trim();
-            if (key && !routingKeys.includes(key)) {
-                routingKeys.push(key);
+            const name = nameInput.value.trim() || key;
+            
+            if (key && !routingKeys.some(k => k.key === key)) {
+                routingKeys.push({ key: key, name: name });
                 keyInput.value = '';
+                nameInput.value = '';
                 updateKeysListMain();
+                updateSpecificKeyDropdown();
                 localStorage.setItem('pdRoutingKeys', JSON.stringify(routingKeys));
             }
         }
@@ -163,26 +208,51 @@
             routingKeys.splice(index, 1);
             updateKeysList();
             updateKeysListMain();
+            updateSpecificKeyDropdown();
             localStorage.setItem('pdRoutingKeys', JSON.stringify(routingKeys));
+        }
+
+        function editKeyName(index) {
+            const newName = prompt('Enter new name for the key:', routingKeys[index].name);
+            if (newName !== null && newName.trim() !== '') {
+                routingKeys[index].name = newName.trim();
+                updateKeysList();
+                updateKeysListMain();
+                updateSpecificKeyDropdown();
+                localStorage.setItem('pdRoutingKeys', JSON.stringify(routingKeys));
+            }
         }
 
         function updateKeysList() {
             const keysList = document.getElementById('keysList');
-            keysList.innerHTML = routingKeys.map((key, index) => `
+            keysList.innerHTML = routingKeys.map((keyObj, index) => `
                 <div class="key-item">
-                    <span>${key}</span>
-                    <button onclick="removeKey(${index})" class="btn btn-sm btn-danger">Remove</button>
+                    <span>${keyObj.name} (${keyObj.key})</span>
+                    <div>
+                        <button onclick="editKeyName(${index})" class="btn btn-sm btn-info me-2">Rename</button>
+                        <button onclick="removeKey(${index})" class="btn btn-sm btn-danger">Remove</button>
+                    </div>
                 </div>
             `).join('');
         }
 
         function updateKeysListMain() {
             const keysList = document.getElementById('mainKeysList');
-            keysList.innerHTML = routingKeys.map((key, index) => `
+            keysList.innerHTML = routingKeys.map((keyObj, index) => `
                 <div class="key-item">
-                    <span>${key}</span>
-                    <button onclick="removeKey(${index})" class="btn btn-sm btn-danger">Remove</button>
+                    <span>${keyObj.name} (${keyObj.key})</span>
+                    <div>
+                        <button onclick="editKeyName(${index})" class="btn btn-sm btn-info me-2">Rename</button>
+                        <button onclick="removeKey(${index})" class="btn btn-sm btn-danger">Remove</button>
+                    </div>
                 </div>
+            `).join('');
+        }
+
+        function updateSpecificKeyDropdown() {
+            const specificKey = document.getElementById('specificKey');
+            specificKey.innerHTML = routingKeys.map(keyObj => `
+                <option value="${keyObj.key}">${keyObj.name}</option>
             `).join('');
         }
 
@@ -192,6 +262,7 @@
                 document.getElementById('setupSection').classList.add('hidden');
                 document.getElementById('controlSection').classList.remove('hidden');
                 updateKeysListMain();
+                updateSpecificKeyDropdown();
             } else {
                 alert('Please add at least one routing key');
             }
@@ -232,12 +303,29 @@
             if (!isRunning) return;
 
             currentIteration++;
-            const selectedKey = routingKeys[Math.floor(Math.random() * routingKeys.length)];
-            const scenarios = ['network', 'database', 'application', 'disk', 'login'];
-            const severities = ['critical', 'error', 'warning', 'info'];
+            
+            // Get key based on selection mode
+            let selectedKey;
+            const keySelectionMode = document.getElementById('keySelectionMode').value;
+            if (keySelectionMode === 'random') {
+                const randomKeyObj = routingKeys[Math.floor(Math.random() * routingKeys.length)];
+                selectedKey = randomKeyObj.key;
+            } else {
+                selectedKey = document.getElementById('specificKey').value;
+            }
 
+            // Get severity based on selection mode
+            let selectedSeverity;
+            const severityMode = document.getElementById('severityMode').value;
+            if (severityMode === 'random') {
+                const severities = ['critical', 'error', 'warning', 'info'];
+                selectedSeverity = severities[Math.floor(Math.random() * severities.length)];
+            } else {
+                selectedSeverity = severityMode;
+            }
+
+            const scenarios = ['network', 'database', 'application', 'disk', 'login'];
             const selectedScenario = scenarios[Math.floor(Math.random() * scenarios.length)];
-            const selectedSeverity = severities[Math.floor(Math.random() * severities.length)];
 
             logStatus(`Running iteration ${currentIteration} of ${totalIterations}`);
             logStatus(`Using routing key: ${selectedKey}`);
@@ -273,7 +361,7 @@
         function startCountdown(seconds) {
             let remaining = seconds;
             document.getElementById('countdown').innerHTML = `Next iteration in: ${remaining} seconds`;
-            
+
             countdownInterval = setInterval(() => {
                 remaining--;
                 if (remaining >= 0) {
