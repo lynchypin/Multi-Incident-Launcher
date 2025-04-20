@@ -30,6 +30,20 @@
         .hidden {
             display: none;
         }
+        .key-selection-box {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            padding: 0.5rem;
+        }
+        .form-check {
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+        }
+        .form-check:last-child {
+            border-bottom: none;
+        }
     </style>
 </head>
 <body>
@@ -89,12 +103,14 @@
                         <label class="form-label">Routing Key Selection</label>
                         <select id="keySelectionMode" class="form-select">
                             <option value="random">Random (Default)</option>
-                            <option value="specific">Specific Key</option>
+                            <option value="specific">Specific Keys</option>
                         </select>
                         <div id="specificKeySelection" class="mt-2 hidden">
-                            <select id="specificKey" class="form-select">
-                                <!-- Populated dynamically -->
-                            </select>
+                            <div class="key-selection-box">
+                                <div id="specificKeys">
+                                    <!-- Checkboxes will be populated here -->
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -250,9 +266,17 @@
         }
 
         function updateSpecificKeyDropdown() {
-            const specificKey = document.getElementById('specificKey');
-            specificKey.innerHTML = routingKeys.map(keyObj => `
-                <option value="${keyObj.key}">${keyObj.name}</option>
+            const specificKeysDiv = document.getElementById('specificKeys');
+            specificKeysDiv.innerHTML = routingKeys.map(keyObj => `
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" 
+                           value="${keyObj.key}" 
+                           id="key-${keyObj.key}" 
+                           name="specific-keys">
+                    <label class="form-check-label" for="key-${keyObj.key}">
+                        ${keyObj.name} (${keyObj.key})
+                    </label>
+                </div>
             `).join('');
         }
 
@@ -311,7 +335,19 @@
                 const randomKeyObj = routingKeys[Math.floor(Math.random() * routingKeys.length)];
                 selectedKey = randomKeyObj.key;
             } else {
-                selectedKey = document.getElementById('specificKey').value;
+                // Get all checked keys
+                const checkedKeys = Array.from(document.querySelectorAll('input[name="specific-keys"]:checked'))
+                    .map(checkbox => checkbox.value);
+                
+                if (checkedKeys.length === 0) {
+                    // If no keys selected, fall back to random
+                    const randomKeyObj = routingKeys[Math.floor(Math.random() * routingKeys.length)];
+                    selectedKey = randomKeyObj.key;
+                    logStatus('No specific keys selected, using random key');
+                } else {
+                    // Randomly select from checked keys
+                    selectedKey = checkedKeys[Math.floor(Math.random() * checkedKeys.length)];
+                }
             }
 
             // Get severity based on selection mode
