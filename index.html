@@ -160,7 +160,6 @@
             </div>
         </div>
     </div>
-
     <script>
         // Initialize variables
         let routingKeys = [];
@@ -168,6 +167,8 @@
         let currentIteration = 0;
         let totalIterations = 0;
         let countdownInterval;
+        let selectedKeysQueue = [];
+        let totalSelectedKeys = 0;
 
         // Load saved keys on startup
         window.onload = function() {
@@ -303,14 +304,36 @@
                 return;
             }
 
+            const keySelectionMode = document.getElementById('keySelectionMode').value;
+            if (keySelectionMode === 'specific') {
+                const checkedKeys = Array.from(document.querySelectorAll('input[name="specific-keys"]:checked'))
+                    .map(checkbox => checkbox.value);
+                
+                if (checkedKeys.length === 0) {
+                    alert('Please select at least one key in specific mode');
+                    return;
+                }
+                
+                // Store selected keys
+                selectedKeysQueue = [...checkedKeys];
+                totalSelectedKeys = checkedKeys.length;
+            }
+
             isRunning = true;
             document.querySelector('button[onclick="startGenerator()"]').disabled = true;
             document.querySelector('button[onclick="stopGenerator()"]').disabled = false;
 
             const runMode = document.getElementById('runMode').value;
-            totalIterations = runMode === 'single' ? 1 : parseInt(document.getElementById('iterations').value);
+            const baseIterations = runMode === 'single' ? 1 : parseInt(document.getElementById('iterations').value);
+            
+            // If in specific mode, multiply iterations by number of selected keys
+            if (keySelectionMode === 'specific') {
+                totalIterations = baseIterations * totalSelectedKeys;
+            } else {
+                totalIterations = baseIterations;
+            }
+            
             currentIteration = 0;
-
             runIteration();
         }
 
@@ -335,20 +358,19 @@
                 const randomKeyObj = routingKeys[Math.floor(Math.random() * routingKeys.length)];
                 selectedKey = randomKeyObj.key;
             } else {
-                // Get all checked keys
-                const checkedKeys = Array.from(document.querySelectorAll('input[name="specific-keys"]:checked'))
-                    .map(checkbox => checkbox.value);
-                
-                if (checkedKeys.length === 0) {
-                    // If no keys selected, fall back to random
-                    const randomKeyObj = routingKeys[Math.floor(Math.random() * routingKeys.length)];
-                    selectedKey = randomKeyObj.key;
-                    logStatus('No specific keys selected, using random key');
-                } else {
-                    // Randomly select from checked keys
-                    selectedKey = checkedKeys[Math.floor(Math.random() * checkedKeys.length)];
+                // Use the next key in the queue
+                if (selectedKeysQueue.length === 0) {
+                    // Refill queue when empty
+                    const checkedKeys = Array.from(document.querySelectorAll('input[name="specific-keys"]:checked'))
+                        .map(checkbox => checkbox.value);
+                    selectedKeysQueue = [...checkedKeys];
                 }
+                selectedKey = selectedKeysQueue.shift(); // Take the next key
             }
+
+            // Find the key name for logging
+            const keyObj = routingKeys.find(k => k.key === selectedKey);
+            const keyName = keyObj ? keyObj.name : selectedKey;
 
             // Get severity based on selection mode
             let selectedSeverity;
@@ -364,7 +386,7 @@
             const selectedScenario = scenarios[Math.floor(Math.random() * scenarios.length)];
 
             logStatus(`Running iteration ${currentIteration} of ${totalIterations}`);
-            logStatus(`Using routing key: ${selectedKey}`);
+            logStatus(`Using routing key: ${keyName} (${selectedKey})`);
             logStatus(`Scenario: ${selectedScenario}, Severity: ${selectedSeverity}`);
 
             // Simulate API call
